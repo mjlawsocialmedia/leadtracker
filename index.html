@@ -10,6 +10,8 @@
 <meta property="og:image" content="https://mjlawsocialmedia.github.io/leadtracker/logo.png">
 <meta property="og:url" content="https://mjlawsocialmedia.github.io/leadtracker/">
 <meta name="twitter:card" content="summary_large_image">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root {
     --cream: #F7F4EE;
@@ -295,13 +297,27 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
   }
 
+  var firebaseConfig = {
+    apiKey: "AIzaSyB-inlB6LupTNCSlSFbOh2SJntekLxDFTw",
+    authDomain: "lawchambers-tracker.firebaseapp.com",
+    projectId: "lawchambers-tracker",
+    storageBucket: "lawchambers-tracker.firebasestorage.app",
+    messagingSenderId: "915935696492",
+    appId: "1:915935696492:web:84d7776a2e0623662aaa49"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var db = firebase.firestore();
+  var leadsCollection = db.collection("leadRegisterLeads");
+
   var state = {
-    leads: loadLS("mj_leads", []),
-    archived: loadLS("mj_archived_leads", []),
+    leads: [],
+    archived: [],
     query: "",
     statusFilter: "All",
     view: "active",
-    editingId: null
+    editingId: null,
+    pendingCreated: null,
+    synced: false
   };
 
   var els = {
@@ -345,9 +361,21 @@
     restoreFileInput: document.getElementById("restore-file-input")
   };
 
-  function persist() {
-    saveLS("mj_leads", state.leads);
-    saveLS("mj_archived_leads", state.archived);
+  function startFirestoreSync() {
+    leadsCollection.onSnapshot(function (snapshot) {
+      var allLeads = [];
+      snapshot.forEach(function (doc) {
+        var data = doc.data();
+        data.id = doc.id;
+        allLeads.push(data);
+      });
+      state.leads = allLeads.filter(function (l) { return !l.archived; });
+      state.archived = allLeads.filter(function (l) { return l.archived; });
+      state.synced = true;
+      render();
+    }, function (err) {
+      showToast("Sync error — check connection");
+    });
   }
 
   function showToast(msg) {
@@ -423,7 +451,7 @@
     if (filtered.length === 0) {
       var emptyMsg = state.view === "archive"
         ? "No archived leads."
-        : (state.leads.length === 0 ? "No leads yet. Add your first one to start the register." : "Nothing matches this search or filter.");
+        : (!state.synced ? "Connecting to shared data…" : (state.leads.length === 0 ? "No leads yet. Add your first one to start the register." : "Nothing matches this search or filter."));
       els.list.innerHTML = '<div class="empty">' + esc(emptyMsg) + "</div>";
       return;
     }
@@ -502,63 +530,35 @@
   }
 
   function toggleDone(id) {
-    state.leads = state.leads.map(function (l) { return l.id === id ? Object.assign({}, l, { done: !l.done }) : l; });
-    persist(); render();
+    leadsCollection.doc(id).update({ done: !state.leads.concat(state.archived).find(function (l) { return l.id === id; }).done });
   }
 
   function cycleStatus(id) {
-    state.leads = state.leads.map(function (l) {
-      if (l.id !== id) return l;
-      var idx = STATUSES.indexOf(l.status);
-      var next = STATUSES[(idx + 1) % STATUSES.length];
-      return Object.assign({}, l, { status: next });
-    });
-    persist(); render();
+    var lead = state.leads.find(function (l) { return l.id === id; });
+    if (!lead) return;
+    var idx = STATUSES.indexOf(lead.status);
+    var next = STATUSES[(idx + 1) % STATUSES.length];
+    leadsCollection.doc(id).update({ status: next });
   }
 
   function archiveLead(id) {
-    var lead = null;
-    state.leads = state.leads.filter(function (l) {
-      if (l.id === id) { lead = l; return false; }
-      return true;
-    });
-    if (lead) {
-      var copy = Object.assign({}, lead, { archivedOn: todayISO() });
-      state.archived = [copy].concat(state.archived);
-    }
-    persist(); render();
+    leadsCollection.doc(id).update({ archived: true, archivedOn: todayISO() });
     showToast("Lead archived");
   }
 
   function restoreLead(id) {
-    var lead = null;
-    state.archived = state.archived.filter(function (l) {
-      if (l.id === id) { lead = l; return false; }
-      return true;
-    });
-    if (lead) {
-      var copy = Object.assign({}, lead);
-      delete copy.archivedOn;
-      state.leads = [copy].concat(state.leads);
-    }
-    persist(); render();
+    leadsCollection.doc(id).update({ archived: false, archivedOn: firebase.firestore.FieldValue.delete() });
     showToast("Lead restored");
   }
 
   function deletePermanently(id) {
-    state.archived = state.archived.filter(function (l) { return l.id !== id; });
-    persist(); render();
+    leadsCollection.doc(id).delete();
     showToast("Lead permanently deleted");
   }
 
   function upsertLead(lead) {
-    var exists = state.leads.some(function (l) { return l.id === lead.id; });
-    if (exists) {
-      state.leads = state.leads.map(function (l) { return l.id === lead.id ? lead : l; });
-    } else {
-      state.leads = [lead].concat(state.leads);
-    }
-    persist(); render();
+    var docData = Object.assign({}, lead, { archived: false });
+    leadsCollection.doc(lead.id).set(docData, { merge: true });
   }
 
   function openForm(id) {
@@ -789,13 +789,27 @@
       try {
         var data = JSON.parse(reader.result);
         if (!data || !Array.isArray(data.leads)) throw new Error("bad file");
-        var confirmMsg = "This will replace your current " + state.leads.length + " active and " + state.archived.length + " archived leads with " + data.leads.length + " active and " + (data.archived ? data.archived.length : 0) + " archived leads from the backup. Continue?";
+        var incomingActive = data.leads || [];
+        var incomingArchived = data.archived || [];
+        var confirmMsg = "This will replace the SHARED live data (seen by everyone) — currently " + state.leads.length + " active and " + state.archived.length + " archived — with " + incomingActive.length + " active and " + incomingArchived.length + " archived leads from the backup. Continue?";
         if (!window.confirm(confirmMsg)) return;
-        state.leads = data.leads || [];
-        state.archived = data.archived || [];
-        persist();
-        render();
-        showToast("Data restored from backup");
+
+        var existingIds = state.leads.concat(state.archived).map(function (l) { return l.id; });
+        var batch = db.batch();
+        existingIds.forEach(function (id) { batch.delete(leadsCollection.doc(id)); });
+        incomingActive.forEach(function (l) {
+          var d = Object.assign({}, l, { archived: false });
+          batch.set(leadsCollection.doc(l.id || uid()), d);
+        });
+        incomingArchived.forEach(function (l) {
+          var d = Object.assign({}, l, { archived: true });
+          batch.set(leadsCollection.doc(l.id || uid()), d);
+        });
+        batch.commit().then(function () {
+          showToast("Data restored from backup");
+        }).catch(function () {
+          window.alert("Restore failed — check your connection and try again.");
+        });
       } catch (e) {
         window.alert("This doesn't look like a valid backup file.");
       }
@@ -892,6 +906,8 @@
     els.gateWrap.style.display = "flex";
     els.gateInput.focus();
   }
+
+  startFirestoreSync();
 })();
 </script>
 </body>
