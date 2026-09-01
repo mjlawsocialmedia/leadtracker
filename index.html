@@ -4,6 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Lead Register — Law Chambers of Mridul Jindal</title>
+<link rel="icon" type="image/png" href="logo.png">
+<meta property="og:title" content="Lead Register — Law Chambers of Mridul Jindal">
+<meta property="og:description" content="Internal lead tracker for Law Chambers of Mridul Jindal.">
+<meta property="og:image" content="https://mjlawsocialmedia.github.io/leadtracker/logo.png">
+<meta property="og:url" content="https://mjlawsocialmedia.github.io/leadtracker/">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root {
     --cream: #F7F4EE;
@@ -150,7 +156,10 @@
     </div>
     <div class="header-actions">
       <button id="archive-toggle" class="btn-secondary">Archive</button>
+      <button id="export-word-btn" class="btn-secondary">Export to Word</button>
+      <button id="quick-add-btn" class="btn-secondary">Quick add</button>
       <button id="new-lead-btn" class="btn-primary">+ New lead</button>
+      <button id="logout-btn" class="btn-secondary">Logout</button>
     </div>
   </header>
 
@@ -179,6 +188,10 @@
     <div class="field">
       <label>Phone</label>
       <input id="f-phone" placeholder="98XXXXXXXX" />
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input id="f-email" type="email" placeholder="name@example.com" />
     </div>
     <div class="field-row">
       <div class="field">
@@ -211,6 +224,23 @@
   </form>
 </div>
 
+<div id="quick-overlay" class="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Quick add from text</h2>
+      <button type="button" id="close-quick" class="close-btn">✕</button>
+    </div>
+    <div class="field">
+      <label>Paste lead details in any format</label>
+      <textarea id="quick-text" rows="6" placeholder="e.g. Rakesh Malhotra 9811012345 rakesh@email.com, referred by CA Sunil, cheque bounce matter around 4 lakh, wants consultation next week"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="quick-cancel" class="btn-cancel">Cancel</button>
+      <button type="button" id="quick-parse" class="btn-save">Parse &amp; review</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -221,7 +251,7 @@
   var SITE_PASSWORD = "changeme123";
   // --------------------------------------------------
 
-  var SOURCES = ["Referral - CA/CS", "Referral - Broker", "Content/YouTube", "Walk-in/Court", "Existing Client", "Other"];
+  var SOURCES = ["Referral - CA/CS", "Referral - Broker", "LawRato", "Content/YouTube", "Walk-in/Court", "Existing Client", "Other"];
   var MATTER_TYPES = ["Criminal/Bail", "NI Act / Cheque Bounce", "Family/Matrimonial", "Property/Civil", "RERA", "Consumer", "Arbitration", "Corporate/Startup", "Other"];
   var STATUSES = ["New", "Contacted", "Consultation Scheduled", "Retained", "Lost"];
   var STATUS_STYLE = {
@@ -287,12 +317,21 @@
     saveForm: document.getElementById("save-form"),
     fName: document.getElementById("f-name"),
     fPhone: document.getElementById("f-phone"),
+    fEmail: document.getElementById("f-email"),
     fSource: document.getElementById("f-source"),
     fMatter: document.getElementById("f-matter"),
     fStatus: document.getElementById("f-status"),
     fFollowup: document.getElementById("f-followup"),
     fNotes: document.getElementById("f-notes"),
-    toast: document.getElementById("toast")
+    toast: document.getElementById("toast"),
+    quickOverlay: document.getElementById("quick-overlay"),
+    quickText: document.getElementById("quick-text"),
+    closeQuick: document.getElementById("close-quick"),
+    quickCancel: document.getElementById("quick-cancel"),
+    quickParse: document.getElementById("quick-parse"),
+    quickAddBtn: document.getElementById("quick-add-btn"),
+    exportWordBtn: document.getElementById("export-word-btn"),
+    logoutBtn: document.getElementById("logout-btn")
   };
 
   function persist() {
@@ -397,6 +436,7 @@
 
       var metaHtml = '<span>' + esc(l.matter) + '</span><span class="meta-divider">·</span><span>' + esc(l.source) + "</span>";
       if (l.phone) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.phone) + "</span>";
+      if (l.email) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.email) + "</span>";
 
       var followUpHtml = "";
       if (state.view === "active" && l.followUp) {
@@ -521,6 +561,7 @@
     els.saveForm.textContent = lead ? "Save changes" : "Add lead";
     els.fName.value = lead ? lead.name : "";
     els.fPhone.value = lead ? lead.phone : "";
+    els.fEmail.value = lead ? (lead.email || "") : "";
     els.fSource.value = lead ? lead.source : SOURCES[0];
     els.fMatter.value = lead ? lead.matter : MATTER_TYPES[0];
     els.fStatus.value = lead ? lead.status : "New";
@@ -536,6 +577,150 @@
     state.editingId = null;
   }
 
+  function openFormWithParsed(parsed) {
+    state.editingId = null;
+    fillSelect(els.fSource, SOURCES);
+    fillSelect(els.fMatter, MATTER_TYPES);
+    fillSelect(els.fStatus, STATUSES);
+    els.formTitle.textContent = "Review parsed details";
+    els.saveForm.textContent = "Add lead";
+    els.fName.value = parsed.name;
+    els.fPhone.value = parsed.phone;
+    els.fEmail.value = parsed.email;
+    els.fSource.value = parsed.source;
+    els.fMatter.value = parsed.matter;
+    els.fStatus.value = "New";
+    els.fFollowup.value = "";
+    els.fNotes.value = parsed.notes;
+    els.overlay.classList.add("open");
+    els.fName.focus();
+  }
+
+  // ---- Raw text parsing (auto-detect fields from pasted notes) ----
+  function parseRawText(text) {
+    var result = { name: "", phone: "", email: "", source: SOURCES[0], matter: MATTER_TYPES[0], notes: text.trim() };
+    if (!text) return result;
+    var lower = text.toLowerCase();
+
+    var phoneMatch = text.match(/(?:\+?91[\-\s]?)?([6-9]\d{9})/);
+    if (phoneMatch) result.phone = phoneMatch[1];
+
+    var emailMatch = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) result.email = emailMatch[0];
+
+    var sourceKeywords = [
+      { key: "lawrato", val: "LawRato" },
+      { key: "chartered accountant", val: "Referral - CA/CS" },
+      { key: "company secretary", val: "Referral - CA/CS" },
+      { key: "referred by ca", val: "Referral - CA/CS" },
+      { key: " ca ", val: "Referral - CA/CS" },
+      { key: "broker", val: "Referral - Broker" },
+      { key: "youtube", val: "Content/YouTube" },
+      { key: "instagram", val: "Content/YouTube" },
+      { key: "reel", val: "Content/YouTube" },
+      { key: "video", val: "Content/YouTube" },
+      { key: "walk-in", val: "Walk-in/Court" },
+      { key: "walk in", val: "Walk-in/Court" },
+      { key: "court", val: "Walk-in/Court" },
+      { key: "existing client", val: "Existing Client" }
+    ];
+    for (var i = 0; i < sourceKeywords.length; i++) {
+      if (lower.indexOf(sourceKeywords[i].key) > -1) { result.source = sourceKeywords[i].val; break; }
+    }
+
+    var matterKeywords = [
+      { key: "bail", val: "Criminal/Bail" },
+      { key: "criminal", val: "Criminal/Bail" },
+      { key: "cheque", val: "NI Act / Cheque Bounce" },
+      { key: "ni act", val: "NI Act / Cheque Bounce" },
+      { key: "138", val: "NI Act / Cheque Bounce" },
+      { key: "divorce", val: "Family/Matrimonial" },
+      { key: "custody", val: "Family/Matrimonial" },
+      { key: "matrimonial", val: "Family/Matrimonial" },
+      { key: "maintenance", val: "Family/Matrimonial" },
+      { key: "rera", val: "RERA" },
+      { key: "property", val: "Property/Civil" },
+      { key: "land", val: "Property/Civil" },
+      { key: "civil suit", val: "Property/Civil" },
+      { key: "consumer", val: "Consumer" },
+      { key: "arbitration", val: "Arbitration" },
+      { key: "startup", val: "Corporate/Startup" },
+      { key: "company", val: "Corporate/Startup" },
+      { key: "corporate", val: "Corporate/Startup" }
+    ];
+    for (var j = 0; j < matterKeywords.length; j++) {
+      if (lower.indexOf(matterKeywords[j].key) > -1) { result.matter = matterKeywords[j].val; break; }
+    }
+
+    var namePart = text;
+    if (phoneMatch) namePart = text.slice(0, text.indexOf(phoneMatch[0]));
+    namePart = namePart.split(/[\n,]/)[0];
+    namePart = namePart.replace(/(name\s*[:\-]?\s*)/i, "");
+    namePart = namePart.trim();
+    var words = namePart.split(/\s+/).filter(Boolean);
+    if (words.length > 5) words = words.slice(0, 4);
+    result.name = words.join(" ");
+
+    return result;
+  }
+
+  function openQuick() {
+    els.quickText.value = "";
+    els.quickOverlay.classList.add("open");
+    els.quickText.focus();
+  }
+  function closeQuick() {
+    els.quickOverlay.classList.remove("open");
+  }
+
+  els.quickAddBtn.addEventListener("click", openQuick);
+  els.closeQuick.addEventListener("click", closeQuick);
+  els.quickCancel.addEventListener("click", closeQuick);
+  els.quickOverlay.addEventListener("click", function (e) { if (e.target === els.quickOverlay) closeQuick(); });
+  els.quickParse.addEventListener("click", function () {
+    var text = els.quickText.value.trim();
+    if (!text) return;
+    var parsed = parseRawText(text);
+    closeQuick();
+    openFormWithParsed(parsed);
+  });
+
+  // ---- Export to Word (.doc) ----
+  function tableWrap(list, isArchive) {
+    if (!list.length) return "<p>None.</p>";
+    var headers = isArchive
+      ? ["Date Added", "Name", "Phone", "Email", "Source", "Matter Type", "Status", "Archived On", "Notes"]
+      : ["Date Added", "Name", "Phone", "Email", "Source", "Matter Type", "Status", "Follow-up Date", "Follow-up Done", "Notes"];
+    var headHtml = "<tr>" + headers.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("") + "</tr>";
+    var bodyHtml = list.map(function (l) {
+      var cells = isArchive
+        ? [l.created, l.name, l.phone, l.email, l.source, l.matter, l.status, l.archivedOn, l.notes]
+        : [l.created, l.name, l.phone, l.email, l.source, l.matter, l.status, l.followUp, (l.done ? "Yes" : "No"), l.notes];
+      return "<tr>" + cells.map(function (c) { return "<td>" + esc(c || "") + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    return "<table>" + headHtml + bodyHtml + "</table>";
+  }
+
+  function exportToWord() {
+    var style = "<style>body{font-family:Arial,sans-serif;} h1{font-size:18px;} h2{font-size:14px;margin-top:24px;} table{border-collapse:collapse;width:100%;margin-bottom:16px;} td,th{border:1px solid #999;padding:6px;font-size:11px;text-align:left;} th{background:#3A342B;color:#ffffff;}</style>";
+    var activeSection = "<h2>Active Leads (" + state.leads.length + ")</h2>" + tableWrap(state.leads, false);
+    var archivedSection = "<h2>Archived Leads (" + state.archived.length + ")</h2>" + tableWrap(state.archived, true);
+    var html = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'>" +
+      style + "</head><body><h1>Lead Register — Law Chambers of Mridul Jindal</h1><p>Exported " + esc(fmtDate(todayISO())) + "</p>" +
+      activeSection + archivedSection + "</body></html>";
+    var blob = new Blob(["\ufeff", html], { type: "application/msword" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "Lead-Register-" + todayISO() + ".doc";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    showToast("Word file downloading…");
+  }
+
+  els.exportWordBtn.addEventListener("click", exportToWord);
+
   els.leadForm.addEventListener("submit", function (e) {
     e.preventDefault();
     var name = els.fName.value.trim();
@@ -545,6 +730,7 @@
       id: existing ? existing.id : uid(),
       name: name,
       phone: els.fPhone.value.trim(),
+      email: els.fEmail.value.trim(),
       source: els.fSource.value,
       matter: els.fMatter.value,
       status: els.fStatus.value,
@@ -581,6 +767,15 @@
     render();
   }
 
+  function lock() {
+    try { sessionStorage.removeItem("mj_unlocked"); } catch (e) {}
+    els.page.style.display = "none";
+    els.gateWrap.style.display = "flex";
+    els.gateInput.value = "";
+    els.gateError.style.display = "none";
+    els.gateInput.focus();
+  }
+
   function tryUnlock() {
     if (els.gateInput.value === SITE_PASSWORD) {
       try { sessionStorage.setItem("mj_unlocked", "true"); } catch (e) {}
@@ -591,6 +786,7 @@
   }
 
   els.gateBtn.addEventListener("click", tryUnlock);
+  els.logoutBtn.addEventListener("click", lock);
   els.gateInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); tryUnlock(); }
     els.gateError.style.display = "none";
