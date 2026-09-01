@@ -157,6 +157,9 @@
     <div class="header-actions">
       <button id="archive-toggle" class="btn-secondary">Archive</button>
       <button id="export-word-btn" class="btn-secondary">Export to Word</button>
+      <button id="backup-btn" class="btn-secondary">Backup data</button>
+      <button id="restore-btn" class="btn-secondary">Restore data</button>
+      <input type="file" id="restore-file-input" accept="application/json" style="display:none" />
       <button id="quick-add-btn" class="btn-secondary">Quick add</button>
       <button id="new-lead-btn" class="btn-primary">+ New lead</button>
       <button id="logout-btn" class="btn-secondary">Logout</button>
@@ -192,6 +195,10 @@
     <div class="field">
       <label>Email</label>
       <input id="f-email" type="email" placeholder="name@example.com" />
+    </div>
+    <div class="field">
+      <label>City</label>
+      <input id="f-city" placeholder="Ghaziabad" />
     </div>
     <div class="field-row">
       <div class="field">
@@ -232,7 +239,7 @@
     </div>
     <div class="field">
       <label>Paste lead details in any format</label>
-      <textarea id="quick-text" rows="6" placeholder="e.g. Rakesh Malhotra 9811012345 rakesh@email.com, referred by CA Sunil, cheque bounce matter around 4 lakh, wants consultation next week"></textarea>
+      <textarea id="quick-text" rows="7" placeholder="Paste any format, e.g.&#10;Enquiry Details:&#10;Date: 31 Aug 2026&#10;Name: Sanjay&#10;Phone: 8802575119&#10;Email: sanjaydcp6323@gmail.com&#10;City: Ghaziabad&#10;Issue: Legal Issue"></textarea>
     </div>
     <div class="modal-actions">
       <button type="button" id="quick-cancel" class="btn-cancel">Cancel</button>
@@ -318,6 +325,7 @@
     fName: document.getElementById("f-name"),
     fPhone: document.getElementById("f-phone"),
     fEmail: document.getElementById("f-email"),
+    fCity: document.getElementById("f-city"),
     fSource: document.getElementById("f-source"),
     fMatter: document.getElementById("f-matter"),
     fStatus: document.getElementById("f-status"),
@@ -331,7 +339,10 @@
     quickParse: document.getElementById("quick-parse"),
     quickAddBtn: document.getElementById("quick-add-btn"),
     exportWordBtn: document.getElementById("export-word-btn"),
-    logoutBtn: document.getElementById("logout-btn")
+    logoutBtn: document.getElementById("logout-btn"),
+    backupBtn: document.getElementById("backup-btn"),
+    restoreBtn: document.getElementById("restore-btn"),
+    restoreFileInput: document.getElementById("restore-file-input")
   };
 
   function persist() {
@@ -437,6 +448,7 @@
       var metaHtml = '<span>' + esc(l.matter) + '</span><span class="meta-divider">·</span><span>' + esc(l.source) + "</span>";
       if (l.phone) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.phone) + "</span>";
       if (l.email) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.email) + "</span>";
+      if (l.city) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.city) + "</span>";
 
       var followUpHtml = "";
       if (state.view === "active" && l.followUp) {
@@ -551,6 +563,7 @@
 
   function openForm(id) {
     state.editingId = id || null;
+    state.pendingCreated = null;
     var lead = id ? state.leads.find(function (l) { return l.id === id; }) : null;
 
     fillSelect(els.fSource, SOURCES);
@@ -562,6 +575,7 @@
     els.fName.value = lead ? lead.name : "";
     els.fPhone.value = lead ? lead.phone : "";
     els.fEmail.value = lead ? (lead.email || "") : "";
+    els.fCity.value = lead ? (lead.city || "") : "";
     els.fSource.value = lead ? lead.source : SOURCES[0];
     els.fMatter.value = lead ? lead.matter : MATTER_TYPES[0];
     els.fStatus.value = lead ? lead.status : "New";
@@ -587,26 +601,55 @@
     els.fName.value = parsed.name;
     els.fPhone.value = parsed.phone;
     els.fEmail.value = parsed.email;
+    els.fCity.value = parsed.city;
     els.fSource.value = parsed.source;
     els.fMatter.value = parsed.matter;
     els.fStatus.value = "New";
     els.fFollowup.value = "";
     els.fNotes.value = parsed.notes;
+    state.pendingCreated = parsed.createdDate || null;
     els.overlay.classList.add("open");
     els.fName.focus();
   }
 
   // ---- Raw text parsing (auto-detect fields from pasted notes) ----
+  function parseDateLoose(str) {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return "";
+  }
+
   function parseRawText(text) {
-    var result = { name: "", phone: "", email: "", source: SOURCES[0], matter: MATTER_TYPES[0], notes: text.trim() };
+    var result = { name: "", phone: "", email: "", city: "", source: "Other", matter: "Other", notes: text.trim(), createdDate: "" };
     if (!text) return result;
     var lower = text.toLowerCase();
 
-    var phoneMatch = text.match(/(?:\+?91[\-\s]?)?([6-9]\d{9})/);
-    if (phoneMatch) result.phone = phoneMatch[1];
+    var nameLabel = text.match(/name\s*[:\-]\s*(.+)/i);
+    var phoneLabel = text.match(/phone\s*[:\-]\s*([\d\+\-\s]{7,15})/i);
+    var emailLabel = text.match(/email\s*[:\-]\s*([^\s,;]+@[^\s,;]+)/i);
+    var cityLabel = text.match(/city\s*[:\-]\s*(.+)/i);
+    var issueLabel = text.match(/issue\s*[:\-]\s*(.+)/i);
+    var dateLabel = text.match(/date\s*[:\-]\s*(.+)/i);
 
-    var emailMatch = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-    if (emailMatch) result.email = emailMatch[0];
+    var phoneGeneral = text.match(/(?:\+?91[\-\s]?)?([6-9]\d{9})/);
+    var emailGeneral = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+
+    result.phone = phoneLabel ? phoneLabel[1].replace(/\D/g, "").slice(-10) : (phoneGeneral ? phoneGeneral[1] : "");
+    result.email = emailLabel ? emailLabel[1].trim() : (emailGeneral ? emailGeneral[0] : "");
+    result.city = cityLabel ? cityLabel[1].trim() : "";
+
+    if (nameLabel) {
+      result.name = nameLabel[1].trim();
+    } else {
+      var namePart = text;
+      if (phoneGeneral) namePart = text.slice(0, text.indexOf(phoneGeneral[0]));
+      namePart = namePart.split(/[\n,]/)[0];
+      namePart = namePart.replace(/(name\s*[:\-]?\s*)/i, "");
+      namePart = namePart.trim();
+      var words = namePart.split(/\s+/).filter(Boolean);
+      if (words.length > 5) words = words.slice(0, 4);
+      result.name = words.join(" ");
+    }
 
     var sourceKeywords = [
       { key: "lawrato", val: "LawRato" },
@@ -628,6 +671,7 @@
       if (lower.indexOf(sourceKeywords[i].key) > -1) { result.source = sourceKeywords[i].val; break; }
     }
 
+    var matterSearchText = issueLabel ? issueLabel[1].toLowerCase() : lower;
     var matterKeywords = [
       { key: "bail", val: "Criminal/Bail" },
       { key: "criminal", val: "Criminal/Bail" },
@@ -649,17 +693,17 @@
       { key: "corporate", val: "Corporate/Startup" }
     ];
     for (var j = 0; j < matterKeywords.length; j++) {
-      if (lower.indexOf(matterKeywords[j].key) > -1) { result.matter = matterKeywords[j].val; break; }
+      if (matterSearchText.indexOf(matterKeywords[j].key) > -1) { result.matter = matterKeywords[j].val; break; }
     }
 
-    var namePart = text;
-    if (phoneMatch) namePart = text.slice(0, text.indexOf(phoneMatch[0]));
-    namePart = namePart.split(/[\n,]/)[0];
-    namePart = namePart.replace(/(name\s*[:\-]?\s*)/i, "");
-    namePart = namePart.trim();
-    var words = namePart.split(/\s+/).filter(Boolean);
-    if (words.length > 5) words = words.slice(0, 4);
-    result.name = words.join(" ");
+    if (dateLabel) {
+      var parsedDate = parseDateLoose(dateLabel[1].trim());
+      if (parsedDate) result.createdDate = parsedDate;
+    }
+
+    if (issueLabel) {
+      result.notes = issueLabel[1].trim();
+    }
 
     return result;
   }
@@ -689,13 +733,13 @@
   function tableWrap(list, isArchive) {
     if (!list.length) return "<p>None.</p>";
     var headers = isArchive
-      ? ["Date Added", "Name", "Phone", "Email", "Source", "Matter Type", "Status", "Archived On", "Notes"]
-      : ["Date Added", "Name", "Phone", "Email", "Source", "Matter Type", "Status", "Follow-up Date", "Follow-up Done", "Notes"];
+      ? ["Date Added", "Name", "Phone", "Email", "City", "Source", "Matter Type", "Status", "Archived On", "Notes"]
+      : ["Date Added", "Name", "Phone", "Email", "City", "Source", "Matter Type", "Status", "Follow-up Date", "Follow-up Done", "Notes"];
     var headHtml = "<tr>" + headers.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("") + "</tr>";
     var bodyHtml = list.map(function (l) {
       var cells = isArchive
-        ? [l.created, l.name, l.phone, l.email, l.source, l.matter, l.status, l.archivedOn, l.notes]
-        : [l.created, l.name, l.phone, l.email, l.source, l.matter, l.status, l.followUp, (l.done ? "Yes" : "No"), l.notes];
+        ? [l.created, l.name, l.phone, l.email, l.city, l.source, l.matter, l.status, l.archivedOn, l.notes]
+        : [l.created, l.name, l.phone, l.email, l.city, l.source, l.matter, l.status, l.followUp, (l.done ? "Yes" : "No"), l.notes];
       return "<tr>" + cells.map(function (c) { return "<td>" + esc(c || "") + "</td>"; }).join("") + "</tr>";
     }).join("");
     return "<table>" + headHtml + bodyHtml + "</table>";
@@ -721,6 +765,52 @@
 
   els.exportWordBtn.addEventListener("click", exportToWord);
 
+  // ---- Backup / Restore data ----
+  function backupData() {
+    var payload = {
+      exportedOn: todayISO(),
+      leads: state.leads,
+      archived: state.archived
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "Lead-Register-Backup-" + todayISO() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    showToast("Backup downloaded");
+  }
+
+  function restoreData(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.leads)) throw new Error("bad file");
+        var confirmMsg = "This will replace your current " + state.leads.length + " active and " + state.archived.length + " archived leads with " + data.leads.length + " active and " + (data.archived ? data.archived.length : 0) + " archived leads from the backup. Continue?";
+        if (!window.confirm(confirmMsg)) return;
+        state.leads = data.leads || [];
+        state.archived = data.archived || [];
+        persist();
+        render();
+        showToast("Data restored from backup");
+      } catch (e) {
+        window.alert("This doesn't look like a valid backup file.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  els.backupBtn.addEventListener("click", backupData);
+  els.restoreBtn.addEventListener("click", function () { els.restoreFileInput.click(); });
+  els.restoreFileInput.addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (file) restoreData(file);
+    els.restoreFileInput.value = "";
+  });
+
   els.leadForm.addEventListener("submit", function (e) {
     e.preventDefault();
     var name = els.fName.value.trim();
@@ -731,14 +821,16 @@
       name: name,
       phone: els.fPhone.value.trim(),
       email: els.fEmail.value.trim(),
+      city: els.fCity.value.trim(),
       source: els.fSource.value,
       matter: els.fMatter.value,
       status: els.fStatus.value,
       followUp: els.fFollowup.value,
       done: existing ? existing.done : false,
       notes: els.fNotes.value.trim(),
-      created: existing ? existing.created : todayISO()
+      created: existing ? existing.created : (state.pendingCreated || todayISO())
     };
+    state.pendingCreated = null;
     upsertLead(lead);
     closeForm();
     showToast(existing ? "Lead updated" : "Lead added");
