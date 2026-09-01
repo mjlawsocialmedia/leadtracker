@@ -4,530 +4,607 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Lead Register — Law Chambers of Mridul Jindal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  html, body { margin: 0; padding: 0; background: #F7F4EE; }
+  :root {
+    --cream: #F7F4EE;
+    --white: #FFFFFF;
+    --border: #E8E1D3;
+    --ink: #2C271F;
+    --ink2: #3A342B;
+    --muted: #6B5D4D;
+    --faint: #8C8072;
+    --divider: #D8CFBE;
+    --overdue-bg: #FDF7F6;
+    --overdue-border: #E3B7B0;
+    --overdue-text: #B4483F;
+    --green: #4F8C5B;
+  }
   * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--cream);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    color: var(--ink2);
+  }
+  h1, h2 { font-family: Georgia, 'Times New Roman', serif; margin: 0; color: var(--ink); }
+  button, input, select, textarea { font-family: inherit; font-size: 14px; }
+  button { cursor: pointer; }
   @keyframes slideUp { from { opacity: 0; transform: translateY(6px);} to { opacity:1; transform:translateY(0);} }
-  .row-enter { animation: slideUp 0.25s ease; }
-  input:focus, select:focus, textarea:focus { outline: 2px solid #7C6A52; outline-offset: 1px; }
-  button:focus-visible { outline: 2px solid #7C6A52; outline-offset: 2px; }
-  button { font-family: inherit; }
+  .row-enter { animation: slideUp 0.2s ease; }
+  input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid #7C6A52; outline-offset: 1px;
+  }
+
+  /* ---- Gate ---- */
+  #gate-wrap {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #gate-box {
+    background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    padding: 32px 28px; width: 100%; max-width: 340px; text-align: center;
+  }
+  #gate-box .kicker { font-size: 12px; color: var(--faint); margin-bottom: 4px; }
+  #gate-box h1 { font-size: 24px; font-weight: 600; margin-bottom: 6px; }
+  #gate-box .sub { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+  #gate-input {
+    width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px;
+    margin-bottom: 10px; text-align: center;
+  }
+  #gate-error { font-size: 12px; color: var(--overdue-text); margin-bottom: 10px; display: none; }
+  #gate-btn {
+    width: 100%; border: none; background: var(--ink2); color: var(--cream);
+    border-radius: 7px; padding: 10px; font-size: 13.5px; font-weight: 600;
+  }
+
+  /* ---- Page ---- */
+  #page { display: none; min-height: 100vh; padding: 28px 20px 60px; max-width: 720px; margin: 0 auto; }
+  header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 22px; gap: 12px; flex-wrap: wrap;
+  }
+  .kicker { font-size: 12px; color: var(--faint); margin-bottom: 2px; }
+  header h1 { font-size: 28px; font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-primary {
+    background: var(--ink2); color: var(--cream); border: none; border-radius: 8px;
+    padding: 9px 14px; font-size: 13.5px; font-weight: 600;
+  }
+  .btn-secondary {
+    background: var(--white); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 13px; font-size: 13px; font-weight: 500;
+  }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-block { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; text-align: center; }
+  .stat-value { font-family: Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.1; }
+  .stat-label { font-size: 10.5px; color: var(--faint); margin-top: 3px; }
+
+  .controls { margin-bottom: 18px; }
+  .search-wrap { display: flex; align-items: center; gap: 8px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; }
+  .search-wrap input { border: none; outline: none; background: transparent; flex: 1; width: 100%; }
+  .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { border: 1px solid var(--border); background: var(--white); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; }
+  .pill.active { background: var(--ink2); border-color: var(--ink2); color: var(--cream); }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .empty { text-align: center; color: var(--faint); font-size: 13.5px; padding: 40px 0; }
+
+  .card { display: flex; gap: 10px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 13px 12px; align-items: flex-start; }
+  .card.overdue { border-color: var(--overdue-border); background: var(--overdue-bg); }
+  .checkbox {
+    width: 20px; height: 20px; min-width: 20px; border-radius: 6px; border: 1.5px solid #C9BEA9;
+    background: #fff; display: flex; align-items: center; justify-content: center; margin-top: 2px; border-style: solid;
+  }
+  .checkbox.done { background: var(--green); border-color: var(--green); color: #fff; font-size: 12px; font-weight: 700; }
+  .card-main { flex: 1; cursor: pointer; min-width: 0; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lead-name { font-family: Georgia, serif; font-size: 15.5px; font-weight: 600; color: var(--ink); }
+  .status-chip { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .card-meta { font-size: 12px; color: var(--faint); margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .meta-divider { color: var(--divider); }
+  .follow-up { font-size: 11.5px; margin-top: 6px; font-weight: 500; }
+  .notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  .card-side-btn { border: 1px solid var(--border); background: #fff; color: var(--faint); padding: 5px 10px; border-radius: 6px; font-size: 11.5px; margin-top: 2px; }
+  .archive-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+  .restore-btn { border: 1px solid var(--border); background: #fff; color: #6B8C7C; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; }
+
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink2); color: var(--cream); padding: 9px 16px; border-radius: 8px; font-size: 12.5px; display: none; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(44,39,31,0.4); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .modal-header h2 { font-size: 18px; font-weight: 600; }
+  .close-btn { border: none; background: transparent; color: var(--faint); font-size: 16px; }
+  .field { margin-bottom: 12px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field label { display: block; font-size: 11.5px; color: var(--faint); margin-bottom: 5px; font-weight: 600; }
+  .field input, .field select, .field textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: var(--ink2); background: #FDFBF7;
+  }
+  .field textarea { resize: vertical; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .btn-cancel { border: 1px solid var(--border); background: #fff; color: var(--muted); border-radius: 7px; padding: 8px 16px; font-size: 13px; }
+  .btn-save { border: none; background: var(--ink2); color: var(--cream); border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 600; }
 </style>
 </head>
 <body>
-<div id="root"></div>
 
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useMemo } = React;
+<div id="gate-wrap">
+  <div id="gate-box">
+    <div class="kicker">Law Chambers of Mridul Jindal</div>
+    <h1>Lead Register</h1>
+    <p class="sub">Enter the password to continue</p>
+    <input id="gate-input" type="password" placeholder="Password" />
+    <div id="gate-error">Incorrect password. Try again.</div>
+    <button id="gate-btn">Unlock</button>
+  </div>
+</div>
 
-// ---- Change this password before publishing ----
-const SITE_PASSWORD = "changeme123";
-// --------------------------------------------------
-
-function Gate({ onUnlock }) {
-  const [input, setInput] = useState("");
-  const [error, setError] = useState(false);
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (input === SITE_PASSWORD) {
-      sessionStorage.setItem("mj_unlocked", "true");
-      onUnlock();
-    } else {
-      setError(true);
-    }
-  }
-
-  return (
-    <div style={gateStyles.wrap}>
-      <form style={gateStyles.box} onSubmit={handleSubmit}>
-        <div style={gateStyles.kicker}>Law Chambers of Mridul Jindal</div>
-        <h1 style={gateStyles.h1}>Lead Register</h1>
-        <p style={gateStyles.sub}>Enter the password to continue</p>
-        <input
-          type="password"
-          autoFocus
-          style={gateStyles.input}
-          value={input}
-          onChange={(e) => { setInput(e.target.value); setError(false); }}
-          placeholder="Password"
-        />
-        {error && <div style={gateStyles.error}>Incorrect password. Try again.</div>}
-        <button type="submit" style={gateStyles.btn}>Unlock</button>
-      </form>
+<div id="page">
+  <header>
+    <div>
+      <div class="kicker">Law Chambers of Mridul Jindal</div>
+      <h1>Lead Register</h1>
     </div>
-  );
-}
+    <div class="header-actions">
+      <button id="archive-toggle" class="btn-secondary">Archive</button>
+      <button id="new-lead-btn" class="btn-primary">+ New lead</button>
+    </div>
+  </header>
 
-const gateStyles = {
-  wrap: { minHeight: "100vh", background: "#F7F4EE", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', sans-serif", padding: 20 },
-  box: { background: "#fff", border: "1px solid #E8E1D3", borderRadius: 14, padding: "32px 28px", width: "100%", maxWidth: 340, textAlign: "center" },
-  kicker: { fontSize: 12, color: "#8C8072", marginBottom: 4 },
-  h1: { fontFamily: "'Source Serif Pro', Georgia, serif", fontSize: 24, fontWeight: 600, margin: "0 0 6px", color: "#2C271F" },
-  sub: { fontSize: 13, color: "#6B5D4D", margin: "0 0 18px" },
-  input: { width: "100%", border: "1px solid #E8E1D3", borderRadius: 7, padding: "10px 12px", fontSize: 14, marginBottom: 10, textAlign: "center" },
-  error: { fontSize: 12, color: "#B4483F", marginBottom: 10 },
-  btn: { width: "100%", border: "none", background: "#3A342B", color: "#F7F4EE", borderRadius: 7, padding: "10px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
-};
+  <div id="stat-row" class="stat-row"></div>
 
-const SOURCES = ["Referral - CA/CS", "Referral - Broker", "Content/YouTube", "Walk-in/Court", "Existing Client", "Other"];
-const MATTER_TYPES = ["Criminal/Bail", "NI Act / Cheque Bounce", "Family/Matrimonial", "Property/Civil", "RERA", "Consumer", "Arbitration", "Corporate/Startup", "Other"];
-const STATUSES = ["New", "Contacted", "Consultation Scheduled", "Retained", "Lost"];
+  <div class="controls">
+    <div class="search-wrap">
+      <input id="search-input" placeholder="Search name, matter, source, notes…" />
+    </div>
+    <div id="filter-pills" class="filter-pills"></div>
+  </div>
 
-const STATUS_STYLE = {
-  "New": { bg: "#EFEAE1", fg: "#6B5D4D", dot: "#A99B85" },
-  "Contacted": { bg: "#E4E9E4", fg: "#4C5D4C", dot: "#7C9A7C" },
-  "Consultation Scheduled": { bg: "#E2E6EE", fg: "#3E4C6B", dot: "#6C81AD" },
-  "Retained": { bg: "#DCE9DE", fg: "#2E5934", dot: "#4F8C5B" },
-  "Lost": { bg: "#EFE1E1", fg: "#7A3D3D", dot: "#B87070" },
-};
+  <div id="list" class="list"></div>
+</div>
 
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+<div id="overlay" class="overlay">
+  <form id="lead-form" class="modal">
+    <div class="modal-header">
+      <h2 id="form-title">New lead</h2>
+      <button type="button" id="close-form" class="close-btn">✕</button>
+    </div>
+    <div class="field">
+      <label>Name</label>
+      <input id="f-name" placeholder="Client or contact name" />
+    </div>
+    <div class="field">
+      <label>Phone</label>
+      <input id="f-phone" placeholder="98XXXXXXXX" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Source</label>
+        <select id="f-source"></select>
+      </div>
+      <div class="field">
+        <label>Matter type</label>
+        <select id="f-matter"></select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Status</label>
+        <select id="f-status"></select>
+      </div>
+      <div class="field">
+        <label>Follow-up date</label>
+        <input id="f-followup" type="date" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="f-notes" rows="3" placeholder="Matter details, amount, referral contact…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="cancel-form" class="btn-cancel">Cancel</button>
+      <button type="submit" id="save-form" class="btn-save">Add lead</button>
+    </div>
+  </form>
+</div>
 
-function fmtDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
+<div id="toast" class="toast"></div>
 
-function isOverdue(iso, done) {
-  if (!iso || done) return false;
-  return iso < todayISO();
-}
+<script>
+(function () {
+  "use strict";
 
-function loadLS(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (e) {
-    return fallback;
+  // ---- Change this password before publishing ----
+  var SITE_PASSWORD = "changeme123";
+  // --------------------------------------------------
+
+  var SOURCES = ["Referral - CA/CS", "Referral - Broker", "Content/YouTube", "Walk-in/Court", "Existing Client", "Other"];
+  var MATTER_TYPES = ["Criminal/Bail", "NI Act / Cheque Bounce", "Family/Matrimonial", "Property/Civil", "RERA", "Consumer", "Arbitration", "Corporate/Startup", "Other"];
+  var STATUSES = ["New", "Contacted", "Consultation Scheduled", "Retained", "Lost"];
+  var STATUS_STYLE = {
+    "New": { bg: "#EFEAE1", fg: "#6B5D4D", dot: "#A99B85" },
+    "Contacted": { bg: "#E4E9E4", fg: "#4C5D4C", dot: "#7C9A7C" },
+    "Consultation Scheduled": { bg: "#E2E6EE", fg: "#3E4C6B", dot: "#6C81AD" },
+    "Retained": { bg: "#DCE9DE", fg: "#2E5934", dot: "#4F8C5B" },
+    "Lost": { bg: "#EFE1E1", fg: "#7A3D3D", dot: "#B87070" }
+  };
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   }
-}
-function saveLS(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
-}
+  function isOverdue(iso, done) {
+    if (!iso || done) return false;
+    return iso < todayISO();
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function loadLS(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) { return fallback; }
+  }
+  function saveLS(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
 
-function LeadDashboard() {
-  const [leads, setLeads] = useState(() => loadLS("mj_leads", []));
-  const [archived, setArchived] = useState(() => loadLS("mj_archived_leads", []));
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [toast, setToast] = useState("");
-  const [view, setView] = useState("active");
+  var state = {
+    leads: loadLS("mj_leads", []),
+    archived: loadLS("mj_archived_leads", []),
+    query: "",
+    statusFilter: "All",
+    view: "active",
+    editingId: null
+  };
 
-  useEffect(() => { saveLS("mj_leads", leads); }, [leads]);
-  useEffect(() => { saveLS("mj_archived_leads", archived); }, [archived]);
+  var els = {
+    gateWrap: document.getElementById("gate-wrap"),
+    gateInput: document.getElementById("gate-input"),
+    gateError: document.getElementById("gate-error"),
+    gateBtn: document.getElementById("gate-btn"),
+    page: document.getElementById("page"),
+    statRow: document.getElementById("stat-row"),
+    filterPills: document.getElementById("filter-pills"),
+    searchInput: document.getElementById("search-input"),
+    list: document.getElementById("list"),
+    archiveToggle: document.getElementById("archive-toggle"),
+    newLeadBtn: document.getElementById("new-lead-btn"),
+    overlay: document.getElementById("overlay"),
+    leadForm: document.getElementById("lead-form"),
+    formTitle: document.getElementById("form-title"),
+    closeForm: document.getElementById("close-form"),
+    cancelForm: document.getElementById("cancel-form"),
+    saveForm: document.getElementById("save-form"),
+    fName: document.getElementById("f-name"),
+    fPhone: document.getElementById("f-phone"),
+    fSource: document.getElementById("f-source"),
+    fMatter: document.getElementById("f-matter"),
+    fStatus: document.getElementById("f-status"),
+    fFollowup: document.getElementById("f-followup"),
+    fNotes: document.getElementById("f-notes"),
+    toast: document.getElementById("toast")
+  };
+
+  function persist() {
+    saveLS("mj_leads", state.leads);
+    saveLS("mj_archived_leads", state.archived);
+  }
 
   function showToast(msg) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 1800);
+    els.toast.textContent = msg;
+    els.toast.style.display = "block";
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () { els.toast.style.display = "none"; }, 1800);
   }
 
-  function upsertLead(lead) {
-    setLeads((prev) => {
-      const exists = prev.some((l) => l.id === lead.id);
-      if (exists) return prev.map((l) => (l.id === lead.id ? lead : l));
-      return [lead, ...prev];
+  function fillSelect(sel, options) {
+    sel.innerHTML = options.map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + "</option>"; }).join("");
+  }
+
+  function getFiltered() {
+    var source = state.view === "archive" ? state.archived : state.leads;
+    var q = state.query.trim().toLowerCase();
+    var out = source.filter(function (l) {
+      if (state.view !== "archive" && state.statusFilter !== "All" && l.status !== state.statusFilter) return false;
+      if (!q) return true;
+      return (l.name || "").toLowerCase().indexOf(q) > -1 ||
+        (l.matter || "").toLowerCase().indexOf(q) > -1 ||
+        (l.source || "").toLowerCase().indexOf(q) > -1 ||
+        (l.notes || "").toLowerCase().indexOf(q) > -1;
     });
+    out.sort(function (a, b) {
+      if (state.view === "archive") return (b.archivedOn || "").localeCompare(a.archivedOn || "");
+      var aOver = isOverdue(a.followUp, a.done) ? 0 : 1;
+      var bOver = isOverdue(b.followUp, b.done) ? 0 : 1;
+      if (aOver !== bOver) return aOver - bOver;
+      return (b.created || "").localeCompare(a.created || "");
+    });
+    return out;
+  }
+
+  function render() {
+    els.archiveToggle.textContent = state.view === "archive"
+      ? "Back to leads"
+      : ("Archive" + (state.archived.length ? " (" + state.archived.length + ")" : ""));
+    els.newLeadBtn.style.display = state.view === "active" ? "inline-block" : "none";
+
+    if (state.view === "active") {
+      var total = state.leads.length;
+      var active = state.leads.filter(function (l) { return l.status !== "Retained" && l.status !== "Lost"; }).length;
+      var overdue = state.leads.filter(function (l) { return isOverdue(l.followUp, l.done); }).length;
+      var retained = state.leads.filter(function (l) { return l.status === "Retained"; }).length;
+      els.statRow.style.display = "grid";
+      els.statRow.innerHTML =
+        statBlock("Total leads", total, "") +
+        statBlock("In progress", active, "") +
+        statBlock("Follow-ups overdue", overdue, overdue > 0 ? "#B4483F" : "") +
+        statBlock("Retained", retained, "#4F8C5B");
+
+      els.filterPills.style.display = "flex";
+      var pills = ["All"].concat(STATUSES);
+      els.filterPills.innerHTML = pills.map(function (s) {
+        var cls = "pill" + (state.statusFilter === s ? " active" : "");
+        return '<button type="button" class="' + cls + '" data-status="' + esc(s) + '">' + esc(s) + "</button>";
+      }).join("");
+      Array.prototype.forEach.call(els.filterPills.querySelectorAll("button"), function (btn) {
+        btn.addEventListener("click", function () {
+          state.statusFilter = btn.getAttribute("data-status");
+          render();
+        });
+      });
+      els.searchInput.placeholder = "Search name, matter, source, notes…";
+    } else {
+      els.statRow.style.display = "none";
+      els.filterPills.style.display = "none";
+      els.searchInput.placeholder = "Search archived leads…";
+    }
+
+    var filtered = getFiltered();
+    if (filtered.length === 0) {
+      var emptyMsg = state.view === "archive"
+        ? "No archived leads."
+        : (state.leads.length === 0 ? "No leads yet. Add your first one to start the register." : "Nothing matches this search or filter.");
+      els.list.innerHTML = '<div class="empty">' + esc(emptyMsg) + "</div>";
+      return;
+    }
+
+    els.list.innerHTML = filtered.map(function (l) {
+      var st = STATUS_STYLE[l.status] || STATUS_STYLE["New"];
+      var overdue = state.view === "active" && isOverdue(l.followUp, l.done);
+      var cardCls = "card row-enter" + (overdue ? " overdue" : "");
+
+      var checkboxHtml = "";
+      if (state.view === "active") {
+        checkboxHtml = '<button type="button" class="checkbox' + (l.done ? " done" : "") + '" data-action="toggle" data-id="' + l.id + '">' + (l.done ? "✓" : "") + "</button>";
+      }
+
+      var statusHtml;
+      if (state.view === "active") {
+        statusHtml = '<button type="button" class="status-chip" data-action="cycle" data-id="' + l.id + '" style="background:' + st.bg + ";color:" + st.fg + '"><span class="status-dot" style="background:' + st.dot + '"></span>' + esc(l.status) + "</button>";
+      } else {
+        statusHtml = '<span class="status-chip" style="background:' + st.bg + ";color:" + st.fg + '"><span class="status-dot" style="background:' + st.dot + '"></span>' + esc(l.status) + "</span>";
+      }
+
+      var metaHtml = '<span>' + esc(l.matter) + '</span><span class="meta-divider">·</span><span>' + esc(l.source) + "</span>";
+      if (l.phone) metaHtml += '<span class="meta-divider">·</span><span>' + esc(l.phone) + "</span>";
+
+      var followUpHtml = "";
+      if (state.view === "active" && l.followUp) {
+        followUpHtml = '<div class="follow-up" style="color:' + (overdue ? "#B4483F" : "#8C8072") + '">' +
+          (overdue ? "Overdue — was due " : "Follow up ") + esc(fmtDate(l.followUp)) + "</div>";
+      } else if (state.view === "archive") {
+        followUpHtml = '<div class="follow-up">Archived ' + esc(fmtDate(l.archivedOn)) + "</div>";
+      }
+
+      var notesHtml = l.notes ? '<div class="notes">' + esc(l.notes) + "</div>" : "";
+
+      var sideHtml;
+      if (state.view === "active") {
+        sideHtml = '<button type="button" class="card-side-btn" data-action="archive" data-id="' + l.id + '">Archive</button>';
+      } else {
+        sideHtml = '<div class="archive-actions">' +
+          '<button type="button" class="restore-btn" data-action="restore" data-id="' + l.id + '">Restore</button>' +
+          '<button type="button" class="card-side-btn" data-action="delete" data-id="' + l.id + '">Delete</button>' +
+          "</div>";
+      }
+
+      var mainClickAttr = state.view === "active" ? ' data-action="edit" data-id="' + l.id + '"' : "";
+
+      return '<div class="' + cardCls + '">' +
+        checkboxHtml +
+        '<div class="card-main"' + mainClickAttr + '>' +
+          '<div class="card-top"><span class="lead-name">' + esc(l.name) + "</span>" + statusHtml + "</div>" +
+          '<div class="card-meta">' + metaHtml + "</div>" +
+          followUpHtml + notesHtml +
+        "</div>" +
+        sideHtml +
+      "</div>";
+    }).join("");
+
+    Array.prototype.forEach.call(els.list.querySelectorAll("[data-action]"), function (el) {
+      var action = el.getAttribute("data-action");
+      var id = el.getAttribute("data-id");
+      el.addEventListener("click", function (e) {
+        if (action === "toggle") { e.stopPropagation(); toggleDone(id); }
+        else if (action === "cycle") { e.stopPropagation(); cycleStatus(id); }
+        else if (action === "archive") { e.stopPropagation(); archiveLead(id); }
+        else if (action === "restore") { e.stopPropagation(); restoreLead(id); }
+        else if (action === "delete") { e.stopPropagation(); deletePermanently(id); }
+        else if (action === "edit") { openForm(id); }
+      });
+    });
+  }
+
+  function statBlock(label, value, color) {
+    return '<div class="stat-block"><div class="stat-value" style="' + (color ? "color:" + color : "") + '">' + value + '</div><div class="stat-label">' + esc(label) + "</div></div>";
+  }
+
+  function toggleDone(id) {
+    state.leads = state.leads.map(function (l) { return l.id === id ? Object.assign({}, l, { done: !l.done }) : l; });
+    persist(); render();
+  }
+
+  function cycleStatus(id) {
+    state.leads = state.leads.map(function (l) {
+      if (l.id !== id) return l;
+      var idx = STATUSES.indexOf(l.status);
+      var next = STATUSES[(idx + 1) % STATUSES.length];
+      return Object.assign({}, l, { status: next });
+    });
+    persist(); render();
   }
 
   function archiveLead(id) {
-    setLeads((prev) => {
-      const lead = prev.find((l) => l.id === id);
-      if (lead) setArchived((a) => [{ ...lead, archivedOn: todayISO() }, ...a]);
-      return prev.filter((l) => l.id !== id);
+    var lead = null;
+    state.leads = state.leads.filter(function (l) {
+      if (l.id === id) { lead = l; return false; }
+      return true;
     });
+    if (lead) {
+      var copy = Object.assign({}, lead, { archivedOn: todayISO() });
+      state.archived = [copy].concat(state.archived);
+    }
+    persist(); render();
     showToast("Lead archived");
   }
 
   function restoreLead(id) {
-    setArchived((prev) => {
-      const lead = prev.find((l) => l.id === id);
-      if (lead) {
-        const { archivedOn, ...rest } = lead;
-        setLeads((l) => [rest, ...l]);
-      }
-      return prev.filter((l) => l.id !== id);
+    var lead = null;
+    state.archived = state.archived.filter(function (l) {
+      if (l.id === id) { lead = l; return false; }
+      return true;
     });
+    if (lead) {
+      var copy = Object.assign({}, lead);
+      delete copy.archivedOn;
+      state.leads = [copy].concat(state.leads);
+    }
+    persist(); render();
     showToast("Lead restored");
   }
 
   function deletePermanently(id) {
-    setArchived((prev) => prev.filter((l) => l.id !== id));
+    state.archived = state.archived.filter(function (l) { return l.id !== id; });
+    persist(); render();
     showToast("Lead permanently deleted");
   }
 
-  function toggleDone(id) {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, done: !l.done } : l)));
+  function upsertLead(lead) {
+    var exists = state.leads.some(function (l) { return l.id === lead.id; });
+    if (exists) {
+      state.leads = state.leads.map(function (l) { return l.id === lead.id ? lead : l; });
+    } else {
+      state.leads = [lead].concat(state.leads);
+    }
+    persist(); render();
   }
 
-  function cycleStatus(id) {
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id !== id) return l;
-        const idx = STATUSES.indexOf(l.status);
-        const next = STATUSES[(idx + 1) % STATUSES.length];
-        return { ...l, status: next };
-      })
-    );
+  function openForm(id) {
+    state.editingId = id || null;
+    var lead = id ? state.leads.find(function (l) { return l.id === id; }) : null;
+
+    fillSelect(els.fSource, SOURCES);
+    fillSelect(els.fMatter, MATTER_TYPES);
+    fillSelect(els.fStatus, STATUSES);
+
+    els.formTitle.textContent = lead ? "Edit lead" : "New lead";
+    els.saveForm.textContent = lead ? "Save changes" : "Add lead";
+    els.fName.value = lead ? lead.name : "";
+    els.fPhone.value = lead ? lead.phone : "";
+    els.fSource.value = lead ? lead.source : SOURCES[0];
+    els.fMatter.value = lead ? lead.matter : MATTER_TYPES[0];
+    els.fStatus.value = lead ? lead.status : "New";
+    els.fFollowup.value = lead ? (lead.followUp || "") : "";
+    els.fNotes.value = lead ? (lead.notes || "") : "";
+
+    els.overlay.classList.add("open");
+    els.fName.focus();
   }
 
-  const filtered = useMemo(() => {
-    const source = view === "archive" ? archived : leads;
-    return source
-      .filter((l) => (view === "archive" ? true : statusFilter === "All" ? true : l.status === statusFilter))
-      .filter((l) => {
-        if (!query.trim()) return true;
-        const q = query.toLowerCase();
-        return (
-          l.name.toLowerCase().includes(q) ||
-          l.matter.toLowerCase().includes(q) ||
-          l.source.toLowerCase().includes(q) ||
-          (l.notes || "").toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => {
-        if (view === "archive") return (b.archivedOn || "").localeCompare(a.archivedOn || "");
-        const aOver = isOverdue(a.followUp, a.done) ? 0 : 1;
-        const bOver = isOverdue(b.followUp, b.done) ? 0 : 1;
-        if (aOver !== bOver) return aOver - bOver;
-        return (b.created || "").localeCompare(a.created || "");
-      });
-  }, [leads, archived, query, statusFilter, view]);
+  function closeForm() {
+    els.overlay.classList.remove("open");
+    state.editingId = null;
+  }
 
-  const stats = useMemo(() => {
-    const total = leads.length;
-    const active = leads.filter((l) => l.status !== "Retained" && l.status !== "Lost").length;
-    const overdue = leads.filter((l) => isOverdue(l.followUp, l.done)).length;
-    const retained = leads.filter((l) => l.status === "Retained").length;
-    return { total, active, overdue, retained };
-  }, [leads]);
-
-  const editingLead = editingId ? leads.find((l) => l.id === editingId) : null;
-
-  return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <div>
-          <div style={styles.kicker}>Law Chambers of Mridul Jindal</div>
-          <h1 style={styles.h1}>Lead Register</h1>
-        </div>
-        <div style={styles.headerActions}>
-          <button style={styles.archiveToggle} onClick={() => setView(view === "archive" ? "active" : "archive")}>
-            {view === "archive" ? "Back to leads" : `Archive${archived.length ? ` (${archived.length})` : ""}`}
-          </button>
-          {view === "active" && (
-            <button style={styles.addBtn} onClick={() => { setEditingId(null); setShowForm(true); }}>
-              + New lead
-            </button>
-          )}
-        </div>
-      </header>
-
-      {view === "active" && (
-        <React.Fragment>
-          <div style={styles.statRow}>
-            <StatBlock label="Total leads" value={stats.total} />
-            <StatBlock label="In progress" value={stats.active} />
-            <StatBlock label="Follow-ups overdue" value={stats.overdue} accent={stats.overdue > 0 ? "#B4483F" : undefined} />
-            <StatBlock label="Retained" value={stats.retained} accent="#4F8C5B" />
-          </div>
-
-          <div style={styles.controls}>
-            <div style={styles.searchWrap}>
-              <input
-                style={styles.searchInput}
-                placeholder="Search name, matter, source, notes…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <div style={styles.filterPills}>
-              {["All", ...STATUSES].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  style={{ ...styles.pill, ...(statusFilter === s ? styles.pillActive : {}) }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        </React.Fragment>
-      )}
-
-      {view === "archive" && (
-        <div style={styles.controls}>
-          <div style={styles.searchWrap}>
-            <input
-              style={styles.searchInput}
-              placeholder="Search archived leads…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div style={styles.list}>
-        {filtered.length === 0 && (
-          <div style={styles.empty}>
-            {view === "archive"
-              ? "No archived leads."
-              : leads.length === 0
-              ? "No leads yet. Add your first one to start the register."
-              : "Nothing matches this search or filter."}
-          </div>
-        )}
-        {filtered.map((l) => {
-          const st = STATUS_STYLE[l.status] || STATUS_STYLE["New"];
-          const overdue = view === "active" && isOverdue(l.followUp, l.done);
-          return (
-            <div key={l.id} className="row-enter" style={{ ...styles.card, ...(overdue ? styles.cardOverdue : {}) }}>
-              {view === "active" && (
-                <button
-                  aria-label={l.done ? "Mark follow-up pending" : "Mark follow-up done"}
-                  onClick={() => toggleDone(l.id)}
-                  style={{ ...styles.checkbox, ...(l.done ? styles.checkboxDone : {}) }}
-                >
-                  {l.done && <span style={{color:"#fff", fontSize:12, fontWeight:700}}>✓</span>}
-                </button>
-              )}
-
-              <div
-                style={styles.cardMain}
-                onClick={() => { if (view === "active") { setEditingId(l.id); setShowForm(true); } }}
-              >
-                <div style={styles.cardTop}>
-                  <span style={styles.leadName}>{l.name}</span>
-                  {view === "active" ? (
-                    <button
-                      style={{ ...styles.statusChip, background: st.bg, color: st.fg }}
-                      onClick={(e) => { e.stopPropagation(); cycleStatus(l.id); }}
-                      title="Click to advance status"
-                    >
-                      <span style={{ ...styles.statusDot, background: st.dot }}></span>
-                      {l.status}
-                    </button>
-                  ) : (
-                    <span style={{ ...styles.statusChip, background: st.bg, color: st.fg }}>
-                      <span style={{ ...styles.statusDot, background: st.dot }}></span>
-                      {l.status}
-                    </span>
-                  )}
-                </div>
-                <div style={styles.cardMeta}>
-                  <span>{l.matter}</span>
-                  <span style={styles.metaDivider}>·</span>
-                  <span>{l.source}</span>
-                  {l.phone && (
-                    <React.Fragment>
-                      <span style={styles.metaDivider}>·</span>
-                      <span>{l.phone}</span>
-                    </React.Fragment>
-                  )}
-                </div>
-                {view === "active" && l.followUp && (
-                  <div style={{ ...styles.followUp, color: overdue ? "#B4483F" : "#8C8072" }}>
-                    {overdue ? "Overdue — was due " : "Follow up "}
-                    {fmtDate(l.followUp)}
-                  </div>
-                )}
-                {view === "archive" && (
-                  <div style={styles.followUp}>Archived {fmtDate(l.archivedOn)}</div>
-                )}
-                {l.notes && <div style={styles.notes}>{l.notes}</div>}
-              </div>
-
-              {view === "active" ? (
-                <button aria-label="Archive lead" style={styles.deleteBtn} onClick={() => archiveLead(l.id)}>Archive</button>
-              ) : (
-                <div style={styles.archiveActions}>
-                  <button aria-label="Restore lead" style={styles.restoreBtn} onClick={() => restoreLead(l.id)}>Restore</button>
-                  <button aria-label="Delete permanently" style={styles.deleteBtn} onClick={() => deletePermanently(l.id)}>Delete</button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {showForm && (
-        <LeadForm
-          lead={editingLead}
-          onClose={() => { setShowForm(false); setEditingId(null); }}
-          onSave={(lead) => { upsertLead(lead); setShowForm(false); setEditingId(null); showToast(editingLead ? "Lead updated" : "Lead added"); }}
-        />
-      )}
-
-      {toast && <div style={styles.toast}>{toast}</div>}
-    </div>
-  );
-}
-
-function StatBlock({ label, value, accent }) {
-  return (
-    <div style={styles.statBlock}>
-      <div style={{ ...styles.statValue, color: accent || "#3A342B" }}>{value}</div>
-      <div style={styles.statLabel}>{label}</div>
-    </div>
-  );
-}
-
-function LeadForm({ lead, onClose, onSave }) {
-  const [name, setName] = useState(lead ? lead.name : "");
-  const [phone, setPhone] = useState(lead ? lead.phone : "");
-  const [source, setSource] = useState(lead ? lead.source : SOURCES[0]);
-  const [matter, setMatter] = useState(lead ? lead.matter : MATTER_TYPES[0]);
-  const [status, setStatus] = useState(lead ? lead.status : "New");
-  const [followUp, setFollowUp] = useState(lead ? lead.followUp : "");
-  const [notes, setNotes] = useState(lead ? lead.notes : "");
-
-  function handleSubmit(e) {
+  els.leadForm.addEventListener("submit", function (e) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSave({
-      id: lead ? lead.id : uid(),
-      name: name.trim(),
-      phone: phone.trim(),
-      source, matter, status, followUp,
-      done: lead ? lead.done : false,
-      notes: notes.trim(),
-      created: lead ? lead.created : todayISO(),
-    });
+    var name = els.fName.value.trim();
+    if (!name) return;
+    var existing = state.editingId ? state.leads.find(function (l) { return l.id === state.editingId; }) : null;
+    var lead = {
+      id: existing ? existing.id : uid(),
+      name: name,
+      phone: els.fPhone.value.trim(),
+      source: els.fSource.value,
+      matter: els.fMatter.value,
+      status: els.fStatus.value,
+      followUp: els.fFollowup.value,
+      done: existing ? existing.done : false,
+      notes: els.fNotes.value.trim(),
+      created: existing ? existing.created : todayISO()
+    };
+    upsertLead(lead);
+    closeForm();
+    showToast(existing ? "Lead updated" : "Lead added");
+  });
+
+  els.closeForm.addEventListener("click", closeForm);
+  els.cancelForm.addEventListener("click", closeForm);
+  els.overlay.addEventListener("click", function (e) { if (e.target === els.overlay) closeForm(); });
+
+  els.newLeadBtn.addEventListener("click", function () { openForm(null); });
+  els.archiveToggle.addEventListener("click", function () {
+    state.view = state.view === "archive" ? "active" : "archive";
+    state.query = "";
+    els.searchInput.value = "";
+    render();
+  });
+  els.searchInput.addEventListener("input", function () {
+    state.query = els.searchInput.value;
+    render();
+  });
+
+  // ---- Password gate ----
+  function unlock() {
+    els.gateWrap.style.display = "none";
+    els.page.style.display = "block";
+    render();
   }
 
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <form style={styles.modal} onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <div style={styles.modalHeader}>
-          <h2 style={styles.modalTitle}>{lead ? "Edit lead" : "New lead"}</h2>
-          <button type="button" style={styles.closeBtn} onClick={onClose}>✕</button>
-        </div>
+  function tryUnlock() {
+    if (els.gateInput.value === SITE_PASSWORD) {
+      try { sessionStorage.setItem("mj_unlocked", "true"); } catch (e) {}
+      unlock();
+    } else {
+      els.gateError.style.display = "block";
+    }
+  }
 
-        <Field label="Name">
-          <input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client or contact name" autoFocus />
-        </Field>
-        <Field label="Phone">
-          <input style={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98XXXXXXXX" />
-        </Field>
-        <div style={styles.fieldRow}>
-          <Field label="Source">
-            <Select value={source} onChange={setSource} options={SOURCES} />
-          </Field>
-          <Field label="Matter type">
-            <Select value={matter} onChange={setMatter} options={MATTER_TYPES} />
-          </Field>
-        </div>
-        <div style={styles.fieldRow}>
-          <Field label="Status">
-            <Select value={status} onChange={setStatus} options={STATUSES} />
-          </Field>
-          <Field label="Follow-up date">
-            <input type="date" style={styles.input} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
-          </Field>
-        </div>
-        <Field label="Notes">
-          <textarea style={styles.textarea} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Matter details, amount, referral contact…" rows="3" />
-        </Field>
-        <div style={styles.modalActions}>
-          <button type="button" style={styles.cancelBtn} onClick={onClose}>Cancel</button>
-          <button type="submit" style={styles.saveBtn}>{lead ? "Save changes" : "Add lead"}</button>
-        </div>
-      </form>
-    </div>
-  );
-}
+  els.gateBtn.addEventListener("click", tryUnlock);
+  els.gateInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); tryUnlock(); }
+    els.gateError.style.display = "none";
+  });
 
-function Field({ label, children }) {
-  return (
-    <div style={styles.field}>
-      <label style={styles.label}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Select({ value, onChange, options }) {
-  return (
-    <select style={styles.select} value={value} onChange={(e) => onChange(e.target.value)}>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
-  );
-}
-
-const FONT = "'Source Serif Pro', Georgia, 'Times New Roman', serif";
-const SANS = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-
-const styles = {
-  page: { minHeight: "100vh", background: "#F7F4EE", fontFamily: SANS, color: "#3A342B", padding: "28px 20px 60px", maxWidth: 720, margin: "0 auto" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 22, gap: 12, flexWrap: "wrap" },
-  kicker: { fontSize: 12, letterSpacing: "0.02em", color: "#8C8072", marginBottom: 2 },
-  h1: { fontFamily: FONT, fontSize: 28, fontWeight: 600, margin: 0, color: "#2C271F" },
-  headerActions: { display: "flex", alignItems: "center", gap: 8 },
-  addBtn: { background: "#3A342B", color: "#F7F4EE", border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
-  archiveToggle: { background: "#fff", color: "#6B5D4D", border: "1px solid #E8E1D3", borderRadius: 8, padding: "9px 13px", fontSize: 13, fontWeight: 500, cursor: "pointer" },
-  statRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 },
-  statBlock: { background: "#FFFFFF", border: "1px solid #E8E1D3", borderRadius: 10, padding: "12px 10px", textAlign: "center" },
-  statValue: { fontFamily: FONT, fontSize: 22, fontWeight: 600, lineHeight: 1.1 },
-  statLabel: { fontSize: 10.5, color: "#8C8072", marginTop: 3 },
-  controls: { marginBottom: 18 },
-  searchWrap: { display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #E8E1D3", borderRadius: 8, padding: "9px 12px", marginBottom: 10 },
-  searchInput: { border: "none", outline: "none", background: "transparent", fontSize: 13.5, flex: 1, color: "#3A342B", width: "100%" },
-  filterPills: { display: "flex", gap: 6, flexWrap: "wrap" },
-  pill: { border: "1px solid #E8E1D3", background: "#FFFFFF", color: "#6B5D4D", borderRadius: 999, padding: "5px 12px", fontSize: 12, cursor: "pointer" },
-  pillActive: { background: "#3A342B", borderColor: "#3A342B", color: "#F7F4EE" },
-  list: { display: "flex", flexDirection: "column", gap: 8 },
-  empty: { textAlign: "center", color: "#8C8072", fontSize: 13.5, padding: "40px 0" },
-  card: { display: "flex", gap: 10, background: "#FFFFFF", border: "1px solid #E8E1D3", borderRadius: 10, padding: "13px 12px", alignItems: "flex-start" },
-  cardOverdue: { borderColor: "#E3B7B0", background: "#FDF7F6" },
-  checkbox: { width: 20, height: 20, minWidth: 20, borderRadius: 6, border: "1.5px solid #C9BEA9", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2 },
-  checkboxDone: { background: "#4F8C5B", borderColor: "#4F8C5B" },
-  cardMain: { flex: 1, cursor: "pointer", minWidth: 0 },
-  cardTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  leadName: { fontFamily: FONT, fontSize: 15.5, fontWeight: 600, color: "#2C271F" },
-  statusChip: { display: "inline-flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
-  statusDot: { width: 6, height: 6, borderRadius: "50%", display: "inline-block" },
-  cardMeta: { fontSize: 12, color: "#8C8072", marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" },
-  metaDivider: { color: "#D8CFBE" },
-  followUp: { fontSize: 11.5, marginTop: 6, fontWeight: 500 },
-  notes: { fontSize: 12.5, color: "#6B5D4D", marginTop: 6, lineHeight: 1.4 },
-  deleteBtn: { border: "1px solid #E8E1D3", background: "#fff", color: "#8C8072", cursor: "pointer", padding: "5px 10px", borderRadius: 6, fontSize: 11.5, marginTop: 2 },
-  archiveActions: { display: "flex", flexDirection: "column", gap: 4, marginTop: 2 },
-  restoreBtn: { border: "1px solid #E8E1D3", background: "#fff", color: "#6B8C7C", cursor: "pointer", padding: "5px 10px", borderRadius: 6, fontSize: 11.5 },
-  toast: { position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "#3A342B", color: "#F7F4EE", padding: "9px 16px", borderRadius: 8, fontSize: 12.5 },
-  overlay: { position: "fixed", inset: 0, background: "rgba(44, 39, 31, 0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 },
-  modal: { background: "#FFFFFF", borderRadius: 14, padding: 20, width: "100%", maxWidth: 420, maxHeight: "88vh", overflowY: "auto" },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  modalTitle: { fontFamily: FONT, fontSize: 18, fontWeight: 600, margin: 0, color: "#2C271F" },
-  closeBtn: { border: "none", background: "transparent", cursor: "pointer", color: "#8C8072", fontSize: 16, padding: 4 },
-  field: { marginBottom: 12 },
-  fieldRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
-  label: { display: "block", fontSize: 11.5, color: "#8C8072", marginBottom: 5, fontWeight: 600 },
-  input: { width: "100%", border: "1px solid #E8E1D3", borderRadius: 7, padding: "8px 10px", fontSize: 13.5, color: "#3A342B", background: "#FDFBF7" },
-  select: { width: "100%", border: "1px solid #E8E1D3", borderRadius: 7, padding: "8px 10px", fontSize: 13.5, color: "#3A342B", background: "#FDFBF7", cursor: "pointer" },
-  textarea: { width: "100%", border: "1px solid #E8E1D3", borderRadius: 7, padding: "8px 10px", fontSize: 13.5, color: "#3A342B", background: "#FDFBF7", resize: "vertical", fontFamily: SANS },
-  modalActions: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 },
-  cancelBtn: { border: "1px solid #E8E1D3", background: "#fff", color: "#6B5D4D", borderRadius: 7, padding: "8px 16px", fontSize: 13, cursor: "pointer" },
-  saveBtn: { border: "none", background: "#3A342B", color: "#F7F4EE", borderRadius: 7, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-};
-
-function App() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mj_unlocked") === "true");
-  if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />;
-  return <LeadDashboard />;
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  var alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem("mj_unlocked") === "true"; } catch (e) {}
+  if (alreadyUnlocked) {
+    unlock();
+  } else {
+    els.gateWrap.style.display = "flex";
+    els.gateInput.focus();
+  }
+})();
 </script>
 </body>
 </html>
