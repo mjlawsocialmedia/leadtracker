@@ -113,6 +113,13 @@
   .meta-divider { color: var(--divider); }
   .follow-up { font-size: 11.5px; margin-top: 6px; font-weight: 500; }
   .notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  .comments-toggle { border: none; background: transparent; color: #6C81AD; font-size: 11.5px; font-weight: 600; padding: 6px 0 0; }
+  .comments-box { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .comment-item { font-size: 12px; color: var(--ink2); background: #FAF7F1; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+  .comment-date { font-size: 10.5px; color: var(--faint); margin-bottom: 2px; }
+  .comment-add-row { display: flex; gap: 6px; margin-top: 6px; }
+  .comment-add-row input { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; background: #FDFBF7; }
+  .comment-add-btn { border: none; background: var(--ink2); color: var(--cream); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
   .card-side-btn { border: 1px solid var(--border); background: #fff; color: var(--faint); padding: 5px 10px; border-radius: 6px; font-size: 11.5px; margin-top: 2px; }
   .archive-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
   .restore-btn { border: 1px solid var(--border); background: #fff; color: #6B8C7C; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; }
@@ -278,6 +285,12 @@
     var d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   }
+  function fmtDateTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
   function isOverdue(iso, done) {
     if (!iso || done) return false;
     return iso < todayISO();
@@ -317,7 +330,8 @@
     view: "active",
     editingId: null,
     pendingCreated: null,
-    synced: false
+    synced: false,
+    expandedComments: {}
   };
 
   var els = {
@@ -488,6 +502,26 @@
 
       var notesHtml = l.notes ? '<div class="notes">' + esc(l.notes) + "</div>" : "";
 
+      var commentsHtml = "";
+      if (state.view === "active") {
+        var comments = l.comments || [];
+        var expanded = !!state.expandedComments[l.id];
+        commentsHtml = '<button type="button" class="comments-toggle" data-action="toggle-comments" data-id="' + l.id + '">' +
+          (expanded ? "Hide comments" : "Comments (" + comments.length + ")") + "</button>";
+        if (expanded) {
+          var itemsHtml = comments.length
+            ? comments.map(function (c) {
+                return '<div class="comment-item"><div class="comment-date">' + esc(fmtDateTime(c.date)) + '</div>' + esc(c.text) + "</div>";
+              }).join("")
+            : '<div class="comment-item" style="color:#8C8072;background:transparent;padding:0 0 6px;">No comments yet.</div>';
+          commentsHtml += '<div class="comments-box">' + itemsHtml +
+            '<div class="comment-add-row">' +
+              '<input type="text" placeholder="Add a comment…" data-comment-input="' + l.id + '" />' +
+              '<button type="button" class="comment-add-btn" data-action="add-comment" data-id="' + l.id + '">Add</button>' +
+            "</div></div>";
+        }
+      }
+
       var sideHtml;
       if (state.view === "active") {
         sideHtml = '<button type="button" class="card-side-btn" data-action="archive" data-id="' + l.id + '">Archive</button>';
@@ -505,7 +539,7 @@
         '<div class="card-main"' + mainClickAttr + '>' +
           '<div class="card-top"><span class="lead-name">' + esc(l.name) + "</span>" + statusHtml + "</div>" +
           '<div class="card-meta">' + metaHtml + "</div>" +
-          followUpHtml + notesHtml +
+          followUpHtml + notesHtml + commentsHtml +
         "</div>" +
         sideHtml +
       "</div>";
@@ -521,6 +555,31 @@
         else if (action === "restore") { e.stopPropagation(); restoreLead(id); }
         else if (action === "delete") { e.stopPropagation(); deletePermanently(id); }
         else if (action === "edit") { openForm(id); }
+        else if (action === "toggle-comments") {
+          e.stopPropagation();
+          state.expandedComments[id] = !state.expandedComments[id];
+          render();
+        }
+        else if (action === "add-comment") {
+          e.stopPropagation();
+          var input = els.list.querySelector('[data-comment-input="' + id + '"]');
+          var text = input ? input.value.trim() : "";
+          if (!text) return;
+          addComment(id, text);
+        }
+      });
+    });
+
+    Array.prototype.forEach.call(els.list.querySelectorAll("[data-comment-input]"), function (inp) {
+      inp.addEventListener("click", function (e) { e.stopPropagation(); });
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          var id = inp.getAttribute("data-comment-input");
+          var text = inp.value.trim();
+          if (!text) return;
+          addComment(id, text);
+        }
       });
     });
   }
@@ -531,6 +590,16 @@
 
   function toggleDone(id) {
     leadsCollection.doc(id).update({ done: !state.leads.concat(state.archived).find(function (l) { return l.id === id; }).done });
+  }
+
+  function addComment(id, text) {
+    var lead = state.leads.concat(state.archived).find(function (l) { return l.id === id; });
+    if (!lead) return;
+    var newComments = (lead.comments || []).concat([{ text: text, date: new Date().toISOString() }]);
+    leadsCollection.doc(id).update({ comments: newComments }).then(function () {
+      var input = els.list.querySelector('[data-comment-input="' + id + '"]');
+      if (input) input.value = "";
+    });
   }
 
   function cycleStatus(id) {
