@@ -124,7 +124,17 @@
   .archive-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
   .restore-btn { border: 1px solid var(--border); background: #fff; color: #6B8C7C; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; }
 
-  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink2); color: var(--cream); padding: 9px 16px; border-radius: 8px; font-size: 12.5px; display: none; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink2); color: var(--cream); padding: 9px 16px; border-radius: 8px; font-size: 12.5px; display: none; z-index: 100; }
+
+  .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .label-row label { margin-bottom: 0 !important; }
+  .manage-link { border: none; background: transparent; color: #6C81AD; font-size: 11.5px; font-weight: 600; padding: 0; }
+  .source-hint { font-size: 12px; color: var(--faint); margin: 0 0 12px; line-height: 1.4; }
+  .source-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 40vh; overflow-y: auto; }
+  .source-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #FAF7F1; border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; font-size: 13px; color: var(--ink2); }
+  .source-remove { border: 1px solid var(--border); background: #fff; color: var(--overdue-text); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; }
+  .source-add-row { display: flex; gap: 6px; }
+  .source-add-row input { flex: 1; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; background: #FDFBF7; color: var(--ink2); }
 
   .overlay { position: fixed; inset: 0; background: rgba(44,39,31,0.4); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .overlay.open { display: flex; }
@@ -211,7 +221,10 @@
     </div>
     <div class="field-row">
       <div class="field">
-        <label>Source</label>
+        <div class="label-row">
+          <label>Source</label>
+          <button type="button" id="manage-sources-btn" class="manage-link">Manage</button>
+        </div>
         <select id="f-source"></select>
       </div>
       <div class="field">
@@ -257,6 +270,24 @@
   </div>
 </div>
 
+<div id="source-overlay" class="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Manage sources</h2>
+      <button type="button" id="close-sources" class="close-btn">✕</button>
+    </div>
+    <p class="source-hint">Add or remove options in the Source dropdown. Removing a source doesn't change leads that already use it. Changes are shared across all devices.</p>
+    <div id="source-list" class="source-list"></div>
+    <div class="source-add-row">
+      <input id="source-new-input" type="text" maxlength="40" placeholder="New source, e.g. JustDial" />
+      <button type="button" id="source-add-btn" class="btn-save">Add</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="source-done-btn" class="btn-cancel">Done</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -267,7 +298,8 @@
   var SITE_PASSWORD = "changeme123";
   // --------------------------------------------------
 
-  var SOURCES = ["Referral - CA/CS", "Referral - Broker", "LawRato", "Content/YouTube", "Walk-in/Court", "Existing Client", "Other"];
+  var DEFAULT_SOURCES = ["LawRato", "Walk-in/Court", "Existing Client", "Website", "Google", "Reference", "Advertisement", "Other"];
+  var SOURCES = DEFAULT_SOURCES.slice(); // replaced by the shared list from Firestore once it loads
   var MATTER_TYPES = ["Criminal/Bail", "NI Act / Cheque Bounce", "Family/Matrimonial", "Property/Civil", "RERA", "Consumer", "Arbitration", "Corporate/Startup", "Other"];
   var STATUSES = ["New", "Contacted", "Consultation Scheduled", "Retained", "Lost"];
   var STATUS_STYLE = {
@@ -321,6 +353,7 @@
   firebase.initializeApp(firebaseConfig);
   var db = firebase.firestore();
   var leadsCollection = db.collection("leadRegisterLeads");
+  var sourcesDoc = db.collection("leadRegisterSettings").doc("sources");
 
   var state = {
     leads: [],
@@ -357,6 +390,13 @@
     fEmail: document.getElementById("f-email"),
     fCity: document.getElementById("f-city"),
     fSource: document.getElementById("f-source"),
+    manageSourcesBtn: document.getElementById("manage-sources-btn"),
+    sourceOverlay: document.getElementById("source-overlay"),
+    sourceList: document.getElementById("source-list"),
+    sourceNewInput: document.getElementById("source-new-input"),
+    sourceAddBtn: document.getElementById("source-add-btn"),
+    sourceDoneBtn: document.getElementById("source-done-btn"),
+    closeSources: document.getElementById("close-sources"),
     fMatter: document.getElementById("f-matter"),
     fStatus: document.getElementById("f-status"),
     fFollowup: document.getElementById("f-followup"),
@@ -390,7 +430,90 @@
     }, function (err) {
       showToast("Sync error — check connection");
     });
+
+    sourcesDoc.onSnapshot(function (snap) {
+      var list = snap.exists ? snap.data().list : null;
+      SOURCES = (Array.isArray(list) && list.length) ? list.slice() : DEFAULT_SOURCES.slice();
+      // keep an open form's dropdown and the manager list in step with changes from other devices
+      if (els.overlay.classList.contains("open")) fillSourceSelect(els.fSource.value);
+      if (els.sourceOverlay.classList.contains("open")) renderSourceManager();
+    }, function () {});
   }
+
+  // ---- Source options (shared, editable) ----
+  // Fills the Source dropdown. If a lead already uses a source that was later removed
+  // from the list, it is kept as a one-off option so editing that lead never loses it.
+  function fillSourceSelect(selected) {
+    var options = SOURCES.slice();
+    if (selected && options.indexOf(selected) === -1) options.push(selected);
+    fillSelect(els.fSource, options);
+    els.fSource.value = (selected && options.indexOf(selected) > -1) ? selected : options[0];
+  }
+
+  function saveSources(list) {
+    return sourcesDoc.set({ list: list }).catch(function () {
+      showToast("Couldn't save — check connection");
+    });
+  }
+
+  function renderSourceManager() {
+    els.sourceList.innerHTML = SOURCES.map(function (s, i) {
+      return '<div class="source-item"><span>' + esc(s) + '</span>' +
+        '<button type="button" class="source-remove" data-index="' + i + '">Remove</button></div>';
+    }).join("");
+    Array.prototype.forEach.call(els.sourceList.querySelectorAll(".source-remove"), function (btn) {
+      btn.addEventListener("click", function () {
+        var i = parseInt(btn.getAttribute("data-index"), 10);
+        removeSource(i);
+      });
+    });
+  }
+
+  function addSource() {
+    var name = els.sourceNewInput.value.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    var exists = SOURCES.some(function (s) { return s.toLowerCase() === name.toLowerCase(); });
+    if (exists) { showToast("That source already exists"); return; }
+    var current = els.fSource.value;
+    SOURCES = SOURCES.concat([name]);
+    els.sourceNewInput.value = "";
+    renderSourceManager();
+    fillSourceSelect(current);
+    saveSources(SOURCES);
+    showToast("Source added");
+  }
+
+  function removeSource(i) {
+    if (SOURCES.length <= 1) { showToast("Keep at least one source"); return; }
+    var name = SOURCES[i];
+    if (!window.confirm('Remove "' + name + '" from the Source list? Existing leads keep their current source.')) return;
+    var current = els.fSource.value;
+    SOURCES = SOURCES.filter(function (_, idx) { return idx !== i; });
+    renderSourceManager();
+    // if the removed source was selected in the open form, move to the first option
+    fillSourceSelect(current === name ? "" : current);
+    saveSources(SOURCES);
+    showToast("Source removed");
+  }
+
+  function openSourceManager() {
+    renderSourceManager();
+    els.sourceNewInput.value = "";
+    els.sourceOverlay.classList.add("open");
+    els.sourceNewInput.focus();
+  }
+  function closeSourceManager() {
+    els.sourceOverlay.classList.remove("open");
+  }
+
+  els.manageSourcesBtn.addEventListener("click", openSourceManager);
+  els.closeSources.addEventListener("click", closeSourceManager);
+  els.sourceDoneBtn.addEventListener("click", closeSourceManager);
+  els.sourceOverlay.addEventListener("click", function (e) { if (e.target === els.sourceOverlay) closeSourceManager(); });
+  els.sourceAddBtn.addEventListener("click", addSource);
+  els.sourceNewInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); addSource(); }
+  });
 
   function showToast(msg) {
     els.toast.textContent = msg;
@@ -635,7 +758,7 @@
     state.pendingCreated = null;
     var lead = id ? state.leads.find(function (l) { return l.id === id; }) : null;
 
-    fillSelect(els.fSource, SOURCES);
+    fillSourceSelect(lead ? lead.source : SOURCES[0]);
     fillSelect(els.fMatter, MATTER_TYPES);
     fillSelect(els.fStatus, STATUSES);
 
@@ -645,7 +768,6 @@
     els.fPhone.value = lead ? lead.phone : "";
     els.fEmail.value = lead ? (lead.email || "") : "";
     els.fCity.value = lead ? (lead.city || "") : "";
-    els.fSource.value = lead ? lead.source : SOURCES[0];
     els.fMatter.value = lead ? lead.matter : MATTER_TYPES[0];
     els.fStatus.value = lead ? lead.status : "New";
     els.fFollowup.value = lead ? (lead.followUp || "") : "";
@@ -662,7 +784,9 @@
 
   function openFormWithParsed(parsed) {
     state.editingId = null;
-    fillSelect(els.fSource, SOURCES);
+    // a source that has since been removed falls back to "Other" (or the first option)
+    var parsedSource = SOURCES.indexOf(parsed.source) > -1 ? parsed.source : (SOURCES.indexOf("Other") > -1 ? "Other" : SOURCES[0]);
+    fillSourceSelect(parsedSource);
     fillSelect(els.fMatter, MATTER_TYPES);
     fillSelect(els.fStatus, STATUSES);
     els.formTitle.textContent = "Review parsed details";
@@ -671,7 +795,6 @@
     els.fPhone.value = parsed.phone;
     els.fEmail.value = parsed.email;
     els.fCity.value = parsed.city;
-    els.fSource.value = parsed.source;
     els.fMatter.value = parsed.matter;
     els.fStatus.value = "New";
     els.fFollowup.value = "";
@@ -734,10 +857,30 @@
       { key: "walk-in", val: "Walk-in/Court" },
       { key: "walk in", val: "Walk-in/Court" },
       { key: "court", val: "Walk-in/Court" },
-      { key: "existing client", val: "Existing Client" }
+      { key: "existing client", val: "Existing Client" },
+      { key: "website", val: "Website" },
+      { key: "google", val: "Google" },
+      { key: "refer", val: "Reference" },
+      { key: "friend", val: "Reference" },
+      { key: "advertis", val: "Advertisement" },
+      { key: "facebook ad", val: "Advertisement" },
+      { key: "instagram ad", val: "Advertisement" },
+      { key: "meta ad", val: "Advertisement" }
     ];
-    for (var i = 0; i < sourceKeywords.length; i++) {
-      if (lower.indexOf(sourceKeywords[i].key) > -1) { result.source = sourceKeywords[i].val; break; }
+    // sources you added yourself: match by name anywhere in the pasted text
+    var sourceText = lower.replace(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g, " "); // ignore email addresses
+    var customMatched = false;
+    for (var c = 0; c < SOURCES.length; c++) {
+      var sName = SOURCES[c];
+      if (DEFAULT_SOURCES.indexOf(sName) === -1 && sName.length >= 3 && sourceText.indexOf(sName.toLowerCase()) > -1) {
+        result.source = sName; customMatched = true; break;
+      }
+    }
+    if (!customMatched) {
+      for (var i = 0; i < sourceKeywords.length; i++) {
+        if (SOURCES.indexOf(sourceKeywords[i].val) === -1) continue; // that source was removed
+        if (sourceText.indexOf(sourceKeywords[i].key) > -1) { result.source = sourceKeywords[i].val; break; }
+      }
     }
 
     var matterSearchText = issueLabel ? issueLabel[1].toLowerCase() : lower;
