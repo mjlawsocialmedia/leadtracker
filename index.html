@@ -12,6 +12,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root {
     --cream: #F7F4EE;
@@ -160,10 +161,9 @@
   <div id="gate-box">
     <div class="kicker">Law Chambers of Mridul Jindal</div>
     <h1>Lead Register</h1>
-    <p class="sub">Enter the password to continue</p>
-    <input id="gate-input" type="password" placeholder="Password" />
-    <div id="gate-error">Incorrect password. Try again.</div>
-    <button id="gate-btn">Unlock</button>
+    <p class="sub">Sign in with your office Google account to continue</p>
+    <div id="gate-error"></div>
+    <button id="gate-btn">Sign in with Google</button>
   </div>
 </div>
 
@@ -294,9 +294,9 @@
 (function () {
   "use strict";
 
-  // ---- Change this password before publishing ----
-  var SITE_PASSWORD = "changeme123";
-  // --------------------------------------------------
+  // ---- Only these Google accounts can open the register (Firestore rules enforce the same list) ----
+  var ALLOWED_EMAILS = ["mriduljindal1997@gmail.com", "mjlawsocialmedia@gmail.com"];
+  // ---------------------------------------------------------------------------------------------------
 
   var DEFAULT_SOURCES = ["LawRato", "Walk-in/Court", "Existing Client", "Website", "Google", "Reference", "Advertisement", "Other"];
   var SOURCES = DEFAULT_SOURCES.slice(); // replaced by the shared list from Firestore once it loads
@@ -1078,48 +1078,54 @@
     render();
   });
 
-  // ---- Password gate ----
+  // ---- Google sign-in (20 Nov 2026: replaces the old shared password) ----
+  var auth = firebase.auth();
+  var syncStarted = false;
+
+  function showGate(msg) {
+    els.page.style.display = "none";
+    els.gateWrap.style.display = "flex";
+    els.gateError.textContent = msg || "";
+    els.gateError.style.display = msg ? "block" : "none";
+  }
+
   function unlock() {
     els.gateWrap.style.display = "none";
     els.page.style.display = "block";
+    if (!syncStarted) { syncStarted = true; startFirestoreSync(); }
     render();
   }
 
-  function lock() {
-    try { sessionStorage.removeItem("mj_unlocked"); } catch (e) {}
-    els.page.style.display = "none";
-    els.gateWrap.style.display = "flex";
-    els.gateInput.value = "";
+  els.gateBtn.addEventListener("click", function () {
+    var provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
     els.gateError.style.display = "none";
-    els.gateInput.focus();
-  }
-
-  function tryUnlock() {
-    if (els.gateInput.value === SITE_PASSWORD) {
-      try { sessionStorage.setItem("mj_unlocked", "true"); } catch (e) {}
-      unlock();
-    } else {
-      els.gateError.style.display = "block";
-    }
-  }
-
-  els.gateBtn.addEventListener("click", tryUnlock);
-  els.logoutBtn.addEventListener("click", lock);
-  els.gateInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); tryUnlock(); }
-    els.gateError.style.display = "none";
+    auth.signInWithPopup(provider).catch(function (err) {
+      var code = err && err.code;
+      if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+        auth.signInWithRedirect(provider);
+      } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
+        showGate("Sign-in failed. Please try again.");
+      }
+    });
   });
 
-  var alreadyUnlocked = false;
-  try { alreadyUnlocked = sessionStorage.getItem("mj_unlocked") === "true"; } catch (e) {}
-  if (alreadyUnlocked) {
-    unlock();
-  } else {
-    els.gateWrap.style.display = "flex";
-    els.gateInput.focus();
-  }
+  els.logoutBtn.addEventListener("click", function () {
+    auth.signOut().then(function () { location.reload(); });
+  });
 
-  startFirestoreSync();
+  auth.getRedirectResult().catch(function () {});
+  auth.onAuthStateChanged(function (user) {
+    if (user && user.email && ALLOWED_EMAILS.indexOf(user.email.toLowerCase()) > -1) {
+      unlock();
+    } else if (user) {
+      var email = user.email || "this account";
+      auth.signOut();
+      showGate("The Google account " + email + " does not have access. Please sign in with your office account.");
+    } else {
+      showGate("");
+    }
+  });
 })();
 </script>
 </body>
