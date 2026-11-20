@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --cream: #F7F4EE;
@@ -163,7 +164,8 @@
     <h1>Lead Register</h1>
     <p class="sub">Sign in with your office Google account to continue</p>
     <div id="gate-error"></div>
-    <button id="gate-btn">Sign in with Google</button>
+    <div id="gsi-btn" style="display:flex;justify-content:center;min-height:44px;margin-bottom:10px"></div>
+    <button id="gate-btn" style="background:transparent;color:inherit;border:0;text-decoration:underline;font-size:12px;opacity:.75;width:auto;padding:4px">Button not showing? Sign in with a pop-up instead</button>
   </div>
 </div>
 
@@ -1096,25 +1098,51 @@
     render();
   }
 
+  // Main sign-in: Google's own button shown inside the page (no pop-up or redirect needed)
+  var GSI_CLIENT_ID = "915935696492-t2rbc92c7p5ft7nrn5rqhs9n9208hn6e.apps.googleusercontent.com";
+  var gsiTries = 0;
+  function initGoogleButton() {
+    if (!(window.google && google.accounts && google.accounts.id)) {
+      if (++gsiTries < 50) setTimeout(initGoogleButton, 200);
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: GSI_CLIENT_ID,
+      callback: function (resp) {
+        els.gateError.style.display = "none";
+        var cred = firebase.auth.GoogleAuthProvider.credential(resp.credential);
+        auth.signInWithCredential(cred).catch(function (err) {
+          showGate("Sign-in failed (" + ((err && err.code) || "error") + "). Please try again.");
+        });
+      },
+      auto_select: true,
+      cancel_on_tap_outside: false
+    });
+    google.accounts.id.renderButton(document.getElementById("gsi-btn"), {
+      theme: "filled_black", size: "large", text: "signin_with", shape: "rectangular", width: 280
+    });
+  }
+  initGoogleButton();
+
+  // Backup: pop-up sign-in
   els.gateBtn.addEventListener("click", function () {
     var provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
     els.gateError.style.display = "none";
     auth.signInWithPopup(provider).catch(function (err) {
       var code = err && err.code;
-      if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
-        auth.signInWithRedirect(provider);
+      if (code === "auth/popup-blocked") {
+        showGate("The pop-up was blocked. Please use the Sign in with Google button above, or allow pop-ups for this site.");
       } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
-        showGate("Sign-in failed. Please try again.");
+        showGate("Sign-in failed (" + (code || "error") + "). Please try again.");
       }
     });
   });
 
   els.logoutBtn.addEventListener("click", function () {
+    try { google.accounts.id.disableAutoSelect(); } catch (e) {}
     auth.signOut().then(function () { location.reload(); });
   });
-
-  auth.getRedirectResult().catch(function () {});
   auth.onAuthStateChanged(function (user) {
     if (user && user.email && ALLOWED_EMAILS.indexOf(user.email.toLowerCase()) > -1) {
       unlock();
